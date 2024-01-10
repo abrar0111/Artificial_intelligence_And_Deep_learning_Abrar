@@ -1,0 +1,137 @@
+#My dataset is available in googledrive; so I am accessing my drive from colab
+from google.colab import drive
+drive.mount('/content/drive', force_remount=True)
+#Once this is executed, you will see your drive appearing on the left hand side
+
+# Define paths to the dataset
+train_dir = '/content/drive/MyDrive/Train'  # Update with your actual path
+test_dir = '/content/drive/MyDrive/Test'    # Update with your actual path
+
+import os
+print(len(os.listdir('/content/drive/MyDrive/Train/Penguin')))
+print(len(os.listdir('/content/drive/MyDrive/Train/Dolphin')))
+print(len(os.listdir('/content/drive/MyDrive/Test/Penguin')))
+print(len(os.listdir('/content/drive/MyDrive/Test/Dolphin')))
+
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+# Create ImageDataGenerator for training set
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    validation_split=0.2  # Split 20% of the images for validation
+)
+
+# Load and prepare training data
+train_data = train_datagen.flow_from_directory(
+    train_dir,
+    target_size=(224,224),
+    batch_size=50,
+    class_mode='binary',  # 'binary' for binary classification (cats vs. dogs)
+    subset='training'  # Specify 'training' for the training set
+)
+
+# Create ImageDataGenerator for validation set
+validation_datagen = ImageDataGenerator(
+    rescale=1./255,
+    validation_split=0.2  # Note: Using the same validation split as in the training set
+)
+
+# Load and prepare validation data
+validation_data = validation_datagen.flow_from_directory(
+    train_dir,
+    target_size=(224,224),
+    batch_size=50,
+    class_mode='binary',
+    subset='validation'  # Specify 'validation' for the validation set
+)
+     
+
+from tensorflow import keras
+from keras import Sequential
+from keras.layers import Dense,Conv2D,MaxPooling2D,Flatten,BatchNormalization,UpSampling2D, Dropout
+
+# Create a Sequential model
+sequentialModel = Sequential()
+
+# Convolutional layer 1 with MaxPooling
+sequentialModel.add(Conv2D(32, kernel_size=(3, 3), padding='valid', activation='relu', input_shape=(224, 224, 3)))
+sequentialModel.add(MaxPooling2D(pool_size=(2, 2), strides=2, padding='valid'))
+
+# Convolutional layer 2 with MaxPooling
+sequentialModel.add(Conv2D(64, kernel_size=(3, 3), padding='valid', activation='relu'))
+sequentialModel.add(MaxPooling2D(pool_size=(2, 2), strides=2, padding='valid'))
+
+# Convolutional layer 3 with MaxPooling
+sequentialModel.add(Conv2D(128, kernel_size=(3, 3), padding='valid', activation='relu'))
+sequentialModel.add(MaxPooling2D(pool_size=(2, 2), strides=2, padding='valid'))
+
+# Flatten layer
+sequentialModel.add(Flatten())
+
+# Fully connected layers
+sequentialModel.add(Dense(128, activation='relu'))
+sequentialModel.add(BatchNormalization())  # Batch Normalization for regularization
+sequentialModel.add(Dropout(0.5))  # Dropout for regularization
+
+sequentialModel.add(Dense(64, activation='relu'))
+sequentialModel.add(BatchNormalization())  # Batch Normalization for regularization
+sequentialModel.add(Dropout(0.5))  # Dropout for regularization
+
+# Output layer with sigmoid activation for binary classification
+sequentialModel.add(Dense(1, activation='sigmoid'))
+
+# Compile the model
+sequentialModel.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Display the model summary
+sequentialModel.summary()
+
+
+from keras.optimizers import Adam
+sequentialModel.compile(optimizer=Adam(learning_rate=0.001),loss='binary_crossentropy',metrics=['accuracy']) 
+
+history = sequentialModel.fit(train_data, epochs=30, validation_data=validation_data)
+
+import matplotlib.pyplot as plt
+
+plt.plot(history.history['accuracy'],color='pink',label='train')
+plt.plot(history.history['val_accuracy'],color='yellow',label='validation')
+plt.legend()
+plt.show()
+
+plt.plot(history.history['loss'],color='red',label='train')
+plt.plot(history.history['val_loss'],color='blue',label='validation')
+plt.legend()
+plt.show()
+
+test_datagen = ImageDataGenerator(rescale=1./255)
+test_data = test_datagen.flow_from_directory(
+    test_dir,
+    target_size=(224,224),
+    batch_size=32,
+    class_mode='binary'
+)
+
+#predict the test data
+predictions = sequentialModel.predict(test_data)
+print(predictions)
+
+len(predictions)
+
+from sklearn.metrics import confusion_matrix, classification_report
+
+# Assuming you have ground truth labels (true_labels) and predicted labels (predictions)
+true_labels = test_data.classes
+predicted_labels = (predictions > 0.5).astype(int)  # Adjust the threshold as needed
+
+# Calculate confusion matrix
+cm = confusion_matrix(true_labels, predicted_labels)
+
+# Print confusion matrix
+print("Confusion Matrix:")
+print(cm)
+
+# Print classification report
+print("Classification Report:")
+print(classification_report(true_labels, predicted_labels))
